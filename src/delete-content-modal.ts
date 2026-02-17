@@ -271,7 +271,7 @@ export class DeleteContentModal extends Modal {
                 .setButtonText('Got it!')
                 .setCta()
                 .onClick(() => {
-                    new DeploymentMonitor(service).monitor();
+                    new DeploymentMonitor(service, this.plugin.settings).monitor();
                     this.close();
                 }));
     }

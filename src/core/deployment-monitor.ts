@@ -1,11 +1,14 @@
 import { Notice } from 'obsidian';
+import { SharePageSettings } from '../settings';
 import { GitHubService } from '../github-service';
 
 export class DeploymentMonitor {
     private service: GitHubService;
+    private settings: SharePageSettings;
 
-    constructor(service: GitHubService) {
+    constructor(service: GitHubService, settings: SharePageSettings) {
         this.service = service;
+        this.settings = settings;
     }
 
     async monitor(shareUrl?: string) {
@@ -66,7 +69,9 @@ export class DeploymentMonitor {
 
 
     private handleSuccess(shareUrl?: string) {
-        this.playSuccessSound();
+        if (this.settings.enableSound) {
+            this.playSuccessSound();
+        }
         if (shareUrl) {
             new Notice('🟢 Website is now live! URL copied to clipboard.', 6000);
             navigator.clipboard.writeText(shareUrl);

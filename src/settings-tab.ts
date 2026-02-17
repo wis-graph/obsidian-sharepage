@@ -129,7 +129,7 @@ export class SharePageSettingTab extends PluginSettingTab {
                 btn.setButtonText('Updating...');
                 await service.mergeUpstream();
                 new Notice('Successfully synced! Verifying deployment...');
-                new DeploymentMonitor(service).monitor();
+                new DeploymentMonitor(service, this.plugin.settings).monitor();
                 this.display();
             })
         );
@@ -143,7 +143,7 @@ export class SharePageSettingTab extends PluginSettingTab {
                 btn.setButtonText('Force Updating...');
                 await service.forceUpdate();
                 new Notice('Force update completed!');
-                new DeploymentMonitor(service).monitor();
+                new DeploymentMonitor(service, this.plugin.settings).monitor();
                 this.display();
             })
         );
@@ -267,6 +267,7 @@ export class SharePageSettingTab extends PluginSettingTab {
         containerEl.createEl('h3', { text: '⚙️ GitHub Configuration' });
 
         this.renderTokenSetting(containerEl);
+        this.renderSoundSetting(containerEl);
         this.renderRepoQuickSelect(containerEl);
         this.renderRepoBasicSettings(containerEl);
         this.renderConnectionTest(containerEl);
@@ -290,6 +291,20 @@ export class SharePageSettingTab extends PluginSettingTab {
                     .setButtonText('Generate Token')
                     .setTooltip('Open GitHub to create a token')
                     .onClick(() => window.open('https://github.com/settings/tokens/new?scopes=repo,workflow&description=Obsidian%20SharePage'))
+            );
+    }
+
+    private renderSoundSetting(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName('Notification Sound')
+            .setDesc('Play a sound when deployment is completed successfully')
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.plugin.settings.enableSound)
+                    .onChange(async (value) => {
+                        this.plugin.settings.enableSound = value;
+                        await this.plugin.saveSettings();
+                    })
             );
     }
 

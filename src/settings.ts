@@ -4,6 +4,7 @@ export interface SharePageSettings {
     repoName: string;
     branch: string;
     customCss: string;
+    enableSound: boolean;
 }
 
 export const DEFAULT_SETTINGS: SharePageSettings = {
@@ -11,5 +12,6 @@ export const DEFAULT_SETTINGS: SharePageSettings = {
     repoOwner: '',
     repoName: '',
     branch: 'main',
-    customCss: ''
+    customCss: '',
+    enableSound: true
 };

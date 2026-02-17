@@ -106,7 +106,7 @@ export class NotePublisher {
         new Notice(`📤 Content uploaded! Site rebuilding...`, 5000);
         // We still copy the URL for convenience, as it's the target destination
         navigator.clipboard.writeText(shareUrl);
-        new DeploymentMonitor(this.service).monitor(shareUrl);
+        new DeploymentMonitor(this.service, this.settings).monitor(shareUrl);
     }
 
     private handleShareError(error: any) {
@@ -165,7 +165,7 @@ export class NotePublisher {
 
     private finalizeUnshare(file: TFile) {
         new Notice('Note deleted! Deployment refresh starting.', 6000);
-        new DeploymentMonitor(this.service).monitor();
+        new DeploymentMonitor(this.service, this.settings).monitor();
 
         this.app.fileManager.processFrontMatter(file, (front) => {
             delete front['sharepage_updated'];

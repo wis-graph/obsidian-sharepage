@@ -9,7 +9,8 @@ const DEFAULT_SETTINGS = {
   repoOwner: "",
   repoName: "",
   branch: "main",
-  customCss: ""
+  customCss: "",
+  enableSound: true
 };
 function getUserAgent() {
   if (typeof navigator === "object" && "userAgent" in navigator) {
@@ -5548,8 +5549,9 @@ class GitHubService {
   }
 }
 class DeploymentMonitor {
-  constructor(service) {
+  constructor(service, settings) {
     this.service = service;
+    this.settings = settings;
   }
   async monitor(shareUrl) {
     const startTime = /* @__PURE__ */ new Date();
@@ -5597,7 +5599,9 @@ class DeploymentMonitor {
     setTimeout(poll, 1e4);
   }
   handleSuccess(shareUrl) {
-    this.playSuccessSound();
+    if (this.settings.enableSound) {
+      this.playSuccessSound();
+    }
     if (shareUrl) {
       new obsidian.Notice("🟢 Website is now live! URL copied to clipboard.", 6e3);
       navigator.clipboard.writeText(shareUrl);
@@ -5942,7 +5946,7 @@ class DeleteContentModal extends obsidian.Modal {
       text: "Your files have been deleted and the dashboard has been updated on GitHub. GitHub Actions will now rebuild your site (~30s - 1min)."
     });
     new obsidian.Setting(this.contentEl).setName("Background Monitoring").setDesc("Site rebuild will be monitored in the background. A notification will appear when it is live.").addButton((btn) => btn.setButtonText("Got it!").setCta().onClick(() => {
-      new DeploymentMonitor(service).monitor();
+      new DeploymentMonitor(service, this.plugin.settings).monitor();
       this.close();
     }));
   }
@@ -6042,7 +6046,7 @@ class SharePageSettingTab extends obsidian.PluginSettingTab {
         btn.setButtonText("Updating...");
         await service.mergeUpstream();
         new obsidian.Notice("Successfully synced! Verifying deployment...");
-        new DeploymentMonitor(service).monitor();
+        new DeploymentMonitor(service, this.plugin.settings).monitor();
         this.display();
       })
     );
@@ -6053,7 +6057,7 @@ class SharePageSettingTab extends obsidian.PluginSettingTab {
         btn.setButtonText("Force Updating...");
         await service.forceUpdate();
         new obsidian.Notice("Force update completed!");
-        new DeploymentMonitor(service).monitor();
+        new DeploymentMonitor(service, this.plugin.settings).monitor();
         this.display();
       })
     );
@@ -6142,6 +6146,7 @@ class SharePageSettingTab extends obsidian.PluginSettingTab {
   renderGitHubConfigSection(containerEl) {
     containerEl.createEl("h3", { text: "⚙️ GitHub Configuration" });
     this.renderTokenSetting(containerEl);
+    this.renderSoundSetting(containerEl);
     this.renderRepoQuickSelect(containerEl);
     this.renderRepoBasicSettings(containerEl);
     this.renderConnectionTest(containerEl);
@@ -6154,6 +6159,14 @@ class SharePageSettingTab extends obsidian.PluginSettingTab {
       })
     ).addButton(
       (button) => button.setButtonText("Generate Token").setTooltip("Open GitHub to create a token").onClick(() => window.open("https://github.com/settings/tokens/new?scopes=repo,workflow&description=Obsidian%20SharePage"))
+    );
+  }
+  renderSoundSetting(containerEl) {
+    new obsidian.Setting(containerEl).setName("Notification Sound").setDesc("Play a sound when deployment is completed successfully").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.enableSound).onChange(async (value) => {
+        this.plugin.settings.enableSound = value;
+        await this.plugin.saveSettings();
+      })
     );
   }
   renderRepoQuickSelect(containerEl) {
@@ -6553,7 +6566,7 @@ class NotePublisher {
   finalizeShare(shareUrl) {
     new obsidian.Notice(`📤 Content uploaded! Site rebuilding...`, 5e3);
     navigator.clipboard.writeText(shareUrl);
-    new DeploymentMonitor(this.service).monitor(shareUrl);
+    new DeploymentMonitor(this.service, this.settings).monitor(shareUrl);
   }
   handleShareError(error) {
     console.error("[NotePublisher] Share failed:", error);
@@ -6600,7 +6613,7 @@ class NotePublisher {
   }
   finalizeUnshare(file) {
     new obsidian.Notice("Note deleted! Deployment refresh starting.", 6e3);
-    new DeploymentMonitor(this.service).monitor();
+    new DeploymentMonitor(this.service, this.settings).monitor();
     this.app.fileManager.processFrontMatter(file, (front) => {
       delete front["sharepage_updated"];
       delete front["sharepage_url"];
