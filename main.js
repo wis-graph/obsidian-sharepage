@@ -6226,6 +6226,50 @@ class SharePageSettingTab extends obsidian.PluginSettingTab {
     new obsidian.Setting(containerEl).setName("Sync Custom Style").addButton(
       (button) => button.setButtonText("Save & Sync Style").setCta().onClick(async () => this.handleStyleSync(button))
     );
+    const guideContainer = containerEl.createDiv({ cls: "sharepage-style-guide-container" });
+    guideContainer.style.marginTop = "15px";
+    const details = guideContainer.createEl("details");
+    details.style.backgroundColor = "var(--background-secondary)";
+    details.style.padding = "10px";
+    details.style.borderRadius = "6px";
+    details.style.border = "1px solid var(--border-color)";
+    details.style.fontSize = "0.9em";
+    const summary = details.createEl("summary");
+    summary.setText("💡 Quick Style Guide (요약 가이드)");
+    summary.style.fontWeight = "bold";
+    summary.style.cursor = "pointer";
+    summary.style.color = "var(--text-accent)";
+    details.createEl("div", {
+      text: "나만의 사이트 디자인을 위한 핵심 변수 요약입니다. 자세한 내용은 포크한 레포지토리의 가이드 문서를 참고하세요.",
+      cls: "setting-item-description"
+    }).style.margin = "10px 0";
+    const pre = details.createEl("pre");
+    pre.style.fontSize = "0.85em";
+    pre.style.backgroundColor = "var(--background-primary)";
+    pre.style.padding = "10px";
+    pre.style.borderRadius = "4px";
+    pre.style.overflowX = "auto";
+    pre.innerHTML = `<code>/* 예시: 핵심 변수 변경 */
+:root {
+  --color-accent-primary: #ff5722; /* 포인트 색상 */
+  --text-body-1: 17px;           /* 본문 크기 */
+  --text-heading-1: 32px;        /* 제목 크기 */
+}
+
+/* 다크모드 전용 설정 */
+body.theme-dark {
+  --color-surface-base: #121212;
+}</code>`;
+    const linksDiv = details.createDiv();
+    linksDiv.style.marginTop = "10px";
+    linksDiv.style.display = "flex";
+    linksDiv.style.flexWrap = "wrap";
+    linksDiv.style.gap = "15px";
+    linksDiv.innerHTML = `
+            <a href="https://github.com/wis-graph/obsidian-sharepage/blob/main/CUSTOM_STYLE_GUIDE_KR.md" target="_blank">📄 Full Guide (KR)</a>
+            <a href="https://github.com/wis-graph/obsidian-sharepage/blob/main/CUSTOM_STYLE_GUIDE.md" target="_blank">📄 Full Guide (EN)</a>
+            <a href="https://github.com/wis-graph/sharepage/tree/main/css" target="_blank">🎨 View CSS Source (GitHub)</a>
+        `;
   }
   async handleStyleSync(button) {
     if (!this.plugin.settings.githubToken || !this.plugin.settings.repoOwner) {
