@@ -3,6 +3,7 @@
  * Ported from sharepage-template/scripts/processors/standard.js
  */
 import { ProcessorUtils } from './ProcessorUtils';
+import { CoreLogic } from '../CoreLogic';
 
 export class StandardProcessor {
     static prepareMetadata(data: Record<string, string>, body: string, filename: string) {
@@ -29,10 +30,15 @@ export class StandardProcessor {
             if (imageMatch) ogImage = imageMatch[1];
         }
 
+        // Normalize image filename (spaces to underscores)
+        if (ogImage && !ogImage.startsWith('http')) {
+            ogImage = `images/${CoreLogic.normalizeName(ogImage)}`;
+        }
+
         return {
             title,
             description,
-            ogImage: ogImage.startsWith('http') ? ogImage : (ogImage ? `images/${ogImage}` : ''),
+            ogImage,
             ogType: 'website'
         };
     }

@@ -184,6 +184,33 @@ export class SharePageSettingTab extends PluginSettingTab {
 
         this.refreshDeploymentStatus(statusSetting);
 
+        new Setting(containerEl)
+            .setName('전체 재빌드')
+            .setDesc('모든 문서를 강제로 다시 빌드합니다. 템플릿 변경 후 사용하세요.')
+            .addButton((btn) =>
+                btn
+                    .setButtonText('재빌드 시작')
+                    .setWarning()
+                    .onClick(async () => {
+                        if (!this.plugin.settings.githubToken || !this.plugin.settings.repoOwner) {
+                            new Notice('GitHub 설정을 먼저 완료하세요.');
+                            return;
+                        }
+                        btn.setDisabled(true);
+                        btn.setButtonText('트리거 중...');
+                        try {
+                            const service = new GitHubService(this.plugin.settings);
+                            await service.triggerRebuild();
+                            new Notice('재빌드가 시작되었습니다. 완료까지 약 1-2분 소요됩니다.');
+                            new DeploymentMonitor(service, this.plugin.settings).monitor();
+                        } catch (e: any) {
+                            new Notice('재빌드 실패: ' + e.message);
+                            btn.setDisabled(false);
+                            btn.setButtonText('재빌드 시작');
+                        }
+                    })
+            );
+
         // Auto-refresh every 15 seconds while the setting tab is open
         const refreshInterval = window.setInterval(() => {
             if (!statusSetting.settingEl.parentElement) {
@@ -215,6 +242,8 @@ export class SharePageSettingTab extends PluginSettingTab {
                 : `🟡 ${lastRun.status}...`;
 
             setting.setDesc(`Last build: ${statusText} (${new Date(lastRun.updated_at).toLocaleString()})`);
+
+            setting.controlEl.empty();
 
             // Always show 'View Logs' if run exists
             setting.addButton((btn) => btn

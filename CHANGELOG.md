@@ -1,5 +1,16 @@
 # SharePage Plugin Changelog
 
+## [1.5.1] - 2026-02-22
+### 🐛 Bug Fixes
+- **Image Upload**: Fixed images not being uploaded when located in non-root folders.
+  - Now uses `metadataCache.getFirstLinkpathDest()` API to find images anywhere in the vault.
+  - Previously failed to find images in `attachments/`, `images/`, or other subfolders.
+  - Works efficiently even with large vaults (200k+ notes) by using Obsidian's internal cache.
+- **Image Size Syntax**: Fixed image detection when using Obsidian's width syntax (`![[image.png|500]]`).
+  - The `|width` part is now correctly stripped before searching for the file.
+- **OG Image Path**: Fixed Open Graph image URLs not loading when filename contains spaces.
+  - Image filenames are now normalized (spaces → underscores) in OG metadata to match uploaded file paths.
+
 ## [1.5.0] - 2026-02-15
 ### ✨ Features
 - **터보 싱크 (Turbo Sync, Beta)**: 깃헙 액션 빌드가 완료되기 전에도 즉시 공유가 가능한 고속 공유 모드입니다. 로컬에서 미리보기 HTML을 직접 생성하여 업로드합니다.

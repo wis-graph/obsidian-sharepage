@@ -35,6 +35,7 @@ export class GitHubService {
     // --- Workflow / System Operations ---
     async getLatestWorkflowRun() { return this.workflow.getLatestWorkflowRun(); }
     async triggerDeployWorkflow() { return this.workflow.triggerDeployWorkflow(); }
+    async triggerRebuild() { return this.workflow.triggerRebuild(); }
     async checkConnection(settings?: any) { return this.workflow.checkConnection(); }
     async getUserRepos() { return this.workflow.getUserRepos(); }
     async fixWorkflowDispatch() { return this.workflow.fixWorkflowDispatch(); }

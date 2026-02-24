@@ -5430,6 +5430,24 @@ class WorkflowService extends GitHubClient {
     });
     return response.data.map((repo) => repo.full_name);
   }
+  async triggerRebuild() {
+    const response = await this.octokit.rest.repos.getContent({
+      owner: this.owner,
+      repo: this.repo,
+      path: ".rebuild"
+    });
+    const newContent = `last_rebuild: ${(/* @__PURE__ */ new Date()).toISOString()}
+`;
+    await this.octokit.rest.repos.createOrUpdateFileContents({
+      owner: this.owner,
+      repo: this.repo,
+      path: ".rebuild",
+      message: "chore: trigger force rebuild",
+      content: Buffer.from(newContent).toString("base64"),
+      sha: response.data.sha,
+      branch: this.branch
+    });
+  }
   async fixWorkflowDispatch() {
     const content = `name: Auto Pre-render for OG Support
 
@@ -5537,6 +5555,9 @@ class GitHubService {
   }
   async triggerDeployWorkflow() {
     return this.workflow.triggerDeployWorkflow();
+  }
+  async triggerRebuild() {
+    return this.workflow.triggerRebuild();
   }
   async checkConnection(settings) {
     return this.workflow.checkConnection();
@@ -6082,6 +6103,26 @@ class SharePageSettingTab extends obsidian.PluginSettingTab {
       (button) => button.setButtonText("Refresh Status").onClick(() => this.display())
     );
     this.refreshDeploymentStatus(statusSetting);
+    new obsidian.Setting(containerEl).setName("전체 재빌드").setDesc("모든 문서를 강제로 다시 빌드합니다. 템플릿 변경 후 사용하세요.").addButton(
+      (btn) => btn.setButtonText("재빌드 시작").setWarning().onClick(async () => {
+        if (!this.plugin.settings.githubToken || !this.plugin.settings.repoOwner) {
+          new obsidian.Notice("GitHub 설정을 먼저 완료하세요.");
+          return;
+        }
+        btn.setDisabled(true);
+        btn.setButtonText("트리거 중...");
+        try {
+          const service = new GitHubService(this.plugin.settings);
+          await service.triggerRebuild();
+          new obsidian.Notice("재빌드가 시작되었습니다. 완료까지 약 1-2분 소요됩니다.");
+          new DeploymentMonitor(service, this.plugin.settings).monitor();
+        } catch (e) {
+          new obsidian.Notice("재빌드 실패: " + e.message);
+          btn.setDisabled(false);
+          btn.setButtonText("재빌드 시작");
+        }
+      })
+    );
     const refreshInterval = window.setInterval(() => {
       if (!statusSetting.settingEl.parentElement) {
         window.clearInterval(refreshInterval);
@@ -6105,6 +6146,7 @@ class SharePageSettingTab extends obsidian.PluginSettingTab {
       const isCompleted = lastRun.status === "completed";
       const statusText = isCompleted ? lastRun.conclusion === "success" ? "🟢 Success (Deployed)" : `🔴 Failed (${lastRun.conclusion})` : `🟡 ${lastRun.status}...`;
       setting.setDesc(`Last build: ${statusText} (${new Date(lastRun.updated_at).toLocaleString()})`);
+      setting.controlEl.empty();
       setting.addButton(
         (btn) => btn.setButtonText("View Logs").setTooltip("Open GitHub Actions page").onClick(() => window.open(lastRun.html_url))
       );
@@ -6369,11 +6411,11 @@ class ImageHandler {
     this.app = app;
     this.service = service;
   }
-  async collectImagesForUpload(content) {
+  async collectImagesForUpload(content, sourcePath) {
     const imageLinks = this.extractImageLinks(content);
     const images = [];
     for (const imageName of imageLinks) {
-      const file = this.findImageFile(imageName);
+      const file = this.findImageFile(imageName, sourcePath);
       if (!file) continue;
       const buffer = await this.app.vault.readBinary(file);
       const normalizedPath = `images/${CoreLogic.normalizeName(file.name)}`;
@@ -6385,27 +6427,27 @@ class ImageHandler {
     }
     return images;
   }
-  async syncImagesWithGitHub(content) {
+  async syncImagesWithGitHub(content, sourcePath) {
     const imageLinks = this.extractImageLinks(content);
     if (imageLinks.length === 0) return;
     console.log(`[ImageHandler] Syncing ${imageLinks.length} images...`);
     for (const imageName of imageLinks) {
-      await this.uploadSingleImage(imageName);
+      await this.uploadSingleImage(imageName, sourcePath);
     }
   }
-  findImageFile(imageName) {
+  findImageFile(imageName, sourcePath) {
     const extensions = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ""];
     for (const ext of extensions) {
-      const path = ext ? imageName + ext : imageName;
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof obsidian.TFile) return file;
+      const linkPath = ext ? imageName + ext : imageName;
+      const file = this.app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath);
+      if (file) return file;
     }
     console.warn(`[ImageHandler] Image not found: ${imageName}`);
     return null;
   }
-  async uploadSingleImage(imageName) {
+  async uploadSingleImage(imageName, sourcePath) {
     try {
-      const file = this.findImageFile(imageName);
+      const file = this.findImageFile(imageName, sourcePath);
       if (!file) return;
       const buffer = await this.app.vault.readBinary(file);
       const targetPath = `images/${file.name}`;
@@ -6420,7 +6462,8 @@ class ImageHandler {
     const links = [];
     let match;
     while ((match = imageRegex.exec(content)) !== null) {
-      links.push(match[1]);
+      const imageName = match[1].split("|")[0];
+      links.push(imageName);
     }
     return links;
   }
@@ -6467,10 +6510,13 @@ class StandardProcessor {
       const imageMatch = body.replace(/```[\s\S]*?```/g, "").match(/!\[\[([^\]]+)\]\]/) || body.match(/!\[.*?\]\((.*?)\)/);
       if (imageMatch) ogImage = imageMatch[1];
     }
+    if (ogImage && !ogImage.startsWith("http")) {
+      ogImage = `images/${CoreLogic.normalizeName(ogImage)}`;
+    }
     return {
       title,
       description,
-      ogImage: ogImage.startsWith("http") ? ogImage : ogImage ? `images/${ogImage}` : "",
+      ogImage,
       ogType: "website"
     };
   }
@@ -6489,7 +6535,14 @@ class YouTubeProcessor {
     if (!ytId) {
       ytId = ProcessorUtils.extractYouTubeId(body);
     }
-    const ogImage = ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` : data.thumbnail ? data.thumbnail.startsWith("http") ? data.thumbnail : `images/${data.thumbnail}` : "";
+    let ogImage;
+    if (ytId) {
+      ogImage = `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`;
+    } else if (data.thumbnail) {
+      ogImage = data.thumbnail.startsWith("http") ? data.thumbnail : `images/${CoreLogic.normalizeName(data.thumbnail)}`;
+    } else {
+      ogImage = "";
+    }
     return {
       title,
       description,
@@ -6515,7 +6568,7 @@ class NotePublisher {
       new obsidian.Notice("🧠 Processing content...", 2e3);
       const html = this.renderNoteHtml(content, template, metadata);
       const updatedDashboard = this.updateDashboard(content, dashboard, `${metadata.webFriendlyName}.md`);
-      const batch = await this.prepareUploadBatch(content, html, updatedDashboard, metadata);
+      const batch = await this.prepareUploadBatch(content, html, updatedDashboard, metadata, file.path);
       new obsidian.Notice(`📤 Sharing ${batch.length} files...`, 3e3);
       await this.service.createBatchCommit(batch, `Share: ${file.name} (Hybrid Render)`);
       await this.updateLocalFrontmatter(file, metadata.shareUrl);
@@ -6552,14 +6605,14 @@ class NotePublisher {
     const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     return CoreLogic.updateDashboardContent(dashboardText, mdFilename, today, true, section);
   }
-  async prepareUploadBatch(content, html, dashboard, metadata) {
+  async prepareUploadBatch(content, html, dashboard, metadata, sourcePath) {
     const batch = [
       { path: metadata.targetPath, content },
       { path: `posts/${metadata.webFriendlyName}.html`, content: html },
       { path: "notes/_dashboard.md", content: dashboard }
     ];
     const imageHandler = new ImageHandler(this.app, this.service);
-    const images = await imageHandler.collectImagesForUpload(content);
+    const images = await imageHandler.collectImagesForUpload(content, sourcePath);
     batch.push(...images);
     return batch;
   }
