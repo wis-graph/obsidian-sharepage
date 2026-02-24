@@ -3,6 +3,7 @@
  * Ported from sharepage-template/scripts/processors/youtube.js
  */
 import { ProcessorUtils } from './ProcessorUtils';
+import { CoreLogic } from '../CoreLogic';
 
 export class YouTubeProcessor {
     static prepareMetadata(data: Record<string, string>, body: string, filename: string) {
@@ -23,9 +24,16 @@ export class YouTubeProcessor {
             ytId = ProcessorUtils.extractYouTubeId(body);
         }
 
-        const ogImage = ytId
-            ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`
-            : (data.thumbnail ? (data.thumbnail.startsWith('http') ? data.thumbnail : `images/${data.thumbnail}`) : '');
+        let ogImage: string;
+        if (ytId) {
+            ogImage = `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`;
+        } else if (data.thumbnail) {
+            ogImage = data.thumbnail.startsWith('http') 
+                ? data.thumbnail 
+                : `images/${CoreLogic.normalizeName(data.thumbnail)}`;
+        } else {
+            ogImage = '';
+        }
 
         return {
             title,

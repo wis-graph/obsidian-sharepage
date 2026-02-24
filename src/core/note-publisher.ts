@@ -38,7 +38,7 @@ export class NotePublisher {
             const updatedDashboard = this.updateDashboard(content, dashboard, `${metadata.webFriendlyName}.md`);
 
             // 3. Prepare Batch
-            const batch = await this.prepareUploadBatch(content, html, updatedDashboard, metadata);
+            const batch = await this.prepareUploadBatch(content, html, updatedDashboard, metadata, file.path);
 
             // 4. Atomic Upload
             new Notice(`📤 Sharing ${batch.length} files...`, 3000);
@@ -88,7 +88,7 @@ export class NotePublisher {
         return CoreLogic.updateDashboardContent(dashboardText, mdFilename, today, true, section);
     }
 
-    private async prepareUploadBatch(content: string, html: string, dashboard: string, metadata: any) {
+    private async prepareUploadBatch(content: string, html: string, dashboard: string, metadata: any, sourcePath: string) {
         const batch: any[] = [
             { path: metadata.targetPath, content },
             { path: `posts/${metadata.webFriendlyName}.html`, content: html },
@@ -96,7 +96,7 @@ export class NotePublisher {
         ];
 
         const imageHandler = new ImageHandler(this.app, this.service);
-        const images = await imageHandler.collectImagesForUpload(content);
+        const images = await imageHandler.collectImagesForUpload(content, sourcePath);
         batch.push(...images);
 
         return batch;

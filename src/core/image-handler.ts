@@ -11,12 +11,12 @@ export class ImageHandler {
         this.service = service;
     }
 
-    async collectImagesForUpload(content: string): Promise<GithubFile[]> {
+    async collectImagesForUpload(content: string, sourcePath: string): Promise<GithubFile[]> {
         const imageLinks = this.extractImageLinks(content);
         const images: GithubFile[] = [];
 
         for (const imageName of imageLinks) {
-            const file = this.findImageFile(imageName);
+            const file = this.findImageFile(imageName, sourcePath);
             if (!file) continue;
 
             const buffer = await this.app.vault.readBinary(file);
@@ -31,33 +31,33 @@ export class ImageHandler {
         return images;
     }
 
-    async syncImagesWithGitHub(content: string): Promise<void> {
+    async syncImagesWithGitHub(content: string, sourcePath: string): Promise<void> {
         const imageLinks = this.extractImageLinks(content);
         if (imageLinks.length === 0) return;
 
         console.log(`[ImageHandler] Syncing ${imageLinks.length} images...`);
 
         for (const imageName of imageLinks) {
-            await this.uploadSingleImage(imageName);
+            await this.uploadSingleImage(imageName, sourcePath);
         }
     }
 
-    private findImageFile(imageName: string): TFile | null {
+    private findImageFile(imageName: string, sourcePath: string): TFile | null {
         const extensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', ''];
 
         for (const ext of extensions) {
-            const path = ext ? imageName + ext : imageName;
-            const file = this.app.vault.getAbstractFileByPath(path);
-            if (file instanceof TFile) return file;
+            const linkPath = ext ? imageName + ext : imageName;
+            const file = this.app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath);
+            if (file) return file;
         }
 
         console.warn(`[ImageHandler] Image not found: ${imageName}`);
         return null;
     }
 
-    private async uploadSingleImage(imageName: string): Promise<void> {
+    private async uploadSingleImage(imageName: string, sourcePath: string): Promise<void> {
         try {
-            const file = this.findImageFile(imageName);
+            const file = this.findImageFile(imageName, sourcePath);
             if (!file) return;
 
             const buffer = await this.app.vault.readBinary(file);
@@ -75,7 +75,8 @@ export class ImageHandler {
         const links: string[] = [];
         let match;
         while ((match = imageRegex.exec(content)) !== null) {
-            links.push(match[1]);
+            const imageName = match[1].split('|')[0];
+            links.push(imageName);
         }
         return links;
     }

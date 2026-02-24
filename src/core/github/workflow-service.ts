@@ -58,6 +58,24 @@ export class WorkflowService extends GitHubClient {
     return response.data.map((repo: any) => repo.full_name);
   }
 
+  async triggerRebuild(): Promise<void> {
+    const response = await this.octokit.rest.repos.getContent({
+      owner: this.owner,
+      repo: this.repo,
+      path: '.rebuild'
+    });
+    const newContent = `last_rebuild: ${new Date().toISOString()}\n`;
+    await this.octokit.rest.repos.createOrUpdateFileContents({
+      owner: this.owner,
+      repo: this.repo,
+      path: '.rebuild',
+      message: 'chore: trigger force rebuild',
+      content: Buffer.from(newContent).toString('base64'),
+      sha: (response.data as any).sha,
+      branch: this.branch
+    });
+  }
+
   async fixWorkflowDispatch(): Promise<void> {
     const content = `name: Auto Pre-render for OG Support
 
